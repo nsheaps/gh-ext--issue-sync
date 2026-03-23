@@ -24,7 +24,7 @@ var pushCmd = &cobra.Command{
 title, body, labels, assignees, and other metadata from the frontmatter.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		repo, err := sync.ResolveRepo()
+		repo, err := ghClient.ResolveRepo()
 		if err != nil {
 			return err
 		}
@@ -39,6 +39,9 @@ title, body, labels, assignees, and other metadata from the frontmatter.`,
 		if err != nil {
 			return fmt.Errorf("invalid issue number %q: %w", args[0], err)
 		}
+		if num <= 0 {
+			return fmt.Errorf("issue number must be positive, got %d", num)
+		}
 		return runPush(repo, num)
 	},
 }
@@ -49,14 +52,14 @@ func init() {
 }
 
 func runPush(repo string, number int) error {
-	filename := fmt.Sprintf("%s/%05d.md", pushDir, number)
+	filename := filepath.Join(pushDir, fmt.Sprintf("%05d.md", number))
 	issue, err := readIssueFile(filename)
 	if err != nil {
 		return err
 	}
 
 	fmt.Fprintf(os.Stderr, "Pushing issue #%d (%s)...\n", issue.Number, issue.Title)
-	if err := sync.PushIssue(repo, issue); err != nil {
+	if err := ghClient.PushIssue(repo, issue); err != nil {
 		return err
 	}
 
@@ -77,20 +80,30 @@ func runPushAll(repo string) error {
 
 	fmt.Fprintf(os.Stderr, "Pushing %d issues to %s...\n", len(files), repo)
 
+	pushed := 0
+	var errors []string
 	for _, filename := range files {
 		issue, err := readIssueFile(filename)
 		if err != nil {
-			return err
+			errors = append(errors, fmt.Sprintf("  %s: %v", filename, err))
+			continue
 		}
 
-		if err := sync.PushIssue(repo, issue); err != nil {
-			return err
+		if err := ghClient.PushIssue(repo, issue); err != nil {
+			errors = append(errors, fmt.Sprintf("  #%d: %v", issue.Number, err))
+			continue
 		}
 
 		fmt.Fprintf(os.Stderr, "  Updated issue #%d (%s)\n", issue.Number, issue.Title)
+		pushed++
 	}
 
-	fmt.Fprintf(os.Stderr, "Done. %d issues pushed.\n", len(files))
+	if len(errors) > 0 {
+		fmt.Fprintf(os.Stderr, "\n%d issues pushed, %d errors:\n%s\n", pushed, len(errors), strings.Join(errors, "\n"))
+		return fmt.Errorf("%d of %d issues failed to push", len(errors), len(files))
+	}
+
+	fmt.Fprintf(os.Stderr, "Done. %d issues pushed.\n", pushed)
 	return nil
 }
 
@@ -108,6 +121,13 @@ func readIssueFile(filename string) (*sync.Issue, error) {
 	}
 
 	body = strings.TrimSpace(body)
+
+	if meta.Number <= 0 {
+		return nil, fmt.Errorf("%s: invalid or missing issue number in frontmatter", filename)
+	}
+	if meta.Title == "" {
+		return nil, fmt.Errorf("%s: missing title in frontmatter", filename)
+	}
 
 	return &sync.Issue{
 		Number:    meta.Number,

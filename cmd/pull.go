@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/nsheaps/gh-ext--issue-sync/internal/frontmatter"
@@ -23,7 +24,7 @@ var pullCmd = &cobra.Command{
 with YAML frontmatter containing issue metadata.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		repo, err := sync.ResolveRepo()
+		repo, err := ghClient.ResolveRepo()
 		if err != nil {
 			return err
 		}
@@ -38,6 +39,9 @@ with YAML frontmatter containing issue metadata.`,
 		if err != nil {
 			return fmt.Errorf("invalid issue number %q: %w", args[0], err)
 		}
+		if num <= 0 {
+			return fmt.Errorf("issue number must be positive, got %d", num)
+		}
 		return runPull(repo, num)
 	},
 }
@@ -49,24 +53,29 @@ func init() {
 }
 
 func runPull(repo string, number int) error {
-	issue, err := sync.FetchIssue(repo, number)
+	issue, err := ghClient.FetchIssue(repo, number)
 	if err != nil {
 		return err
 	}
 
-	return writeIssueFile(issue)
+	return writeIssueFile(issue, pullDir)
 }
 
 func runPullAll(repo string) error {
-	issues, err := sync.FetchAllIssues(repo, pullState)
+	issues, err := ghClient.FetchAllIssues(repo, pullState)
 	if err != nil {
 		return err
+	}
+
+	if len(issues) == 0 {
+		fmt.Fprintf(os.Stderr, "No issues found in %s (state=%s)\n", repo, pullState)
+		return nil
 	}
 
 	fmt.Fprintf(os.Stderr, "Pulling %d issues from %s...\n", len(issues), repo)
 
 	for _, issue := range issues {
-		if err := writeIssueFile(issue); err != nil {
+		if err := writeIssueFile(issue, pullDir); err != nil {
 			return err
 		}
 	}
@@ -75,12 +84,12 @@ func runPullAll(repo string) error {
 	return nil
 }
 
-func writeIssueFile(issue *sync.Issue) error {
-	if err := os.MkdirAll(pullDir, 0o755); err != nil {
-		return fmt.Errorf("creating directory %s: %w", pullDir, err)
+func writeIssueFile(issue *sync.Issue, dir string) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("creating directory %s: %w", dir, err)
 	}
 
-	filename := fmt.Sprintf("%s/%05d.md", pullDir, issue.Number)
+	filename := filepath.Join(dir, fmt.Sprintf("%05d.md", issue.Number))
 
 	f, err := os.Create(filename)
 	if err != nil {

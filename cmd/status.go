@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/nsheaps/gh-ext--issue-sync/internal/frontmatter"
@@ -18,7 +19,7 @@ var statusCmd = &cobra.Command{
 	Short: "Show sync status of local issue files",
 	Long:  `Compare local issue files against GitHub and show which are modified, new, or deleted.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		repo, err := sync.ResolveRepo()
+		repo, err := ghClient.ResolveRepo()
 		if err != nil {
 			return err
 		}
@@ -61,14 +62,14 @@ func runStatus(repo string) error {
 		localBody = strings.TrimSpace(localBody)
 
 		// Fetch remote issue
-		remote, err := sync.FetchIssue(repo, meta.Number)
+		remote, err := ghClient.FetchIssue(repo, meta.Number)
 		if err != nil {
 			fmt.Printf("  ? #%d %s (could not fetch from GitHub)\n", meta.Number, meta.Title)
 			continue
 		}
 
 		// Compare key fields
-		changes := []string{}
+		var changes []string
 		if meta.Title != remote.Title {
 			changes = append(changes, "title")
 		}
@@ -78,11 +79,14 @@ func runStatus(repo string) error {
 		if meta.State != remote.State {
 			changes = append(changes, "state")
 		}
-		if !stringSliceEqual(meta.Labels, remote.Labels) {
+		if !stringSliceEqualUnordered(meta.Labels, remote.Labels) {
 			changes = append(changes, "labels")
 		}
-		if !stringSliceEqual(meta.Assignees, remote.Assignees) {
+		if !stringSliceEqualUnordered(meta.Assignees, remote.Assignees) {
 			changes = append(changes, "assignees")
+		}
+		if meta.Milestone != remote.Milestone {
+			changes = append(changes, "milestone")
 		}
 
 		if len(changes) == 0 {
@@ -95,12 +99,22 @@ func runStatus(repo string) error {
 	return nil
 }
 
-func stringSliceEqual(a, b []string) bool {
+// stringSliceEqualUnordered compares two string slices ignoring order.
+func stringSliceEqualUnordered(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}
-	for i := range a {
-		if a[i] != b[i] {
+	if len(a) == 0 {
+		return true
+	}
+	aSorted := make([]string, len(a))
+	bSorted := make([]string, len(b))
+	copy(aSorted, a)
+	copy(bSorted, b)
+	sort.Strings(aSorted)
+	sort.Strings(bSorted)
+	for i := range aSorted {
+		if aSorted[i] != bSorted[i] {
 			return false
 		}
 	}

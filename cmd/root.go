@@ -1,8 +1,13 @@
 package cmd
 
 import (
+	"github.com/nsheaps/gh-ext--issue-sync/internal/sync"
 	"github.com/spf13/cobra"
 )
+
+// ghClient is the GitHub client used by all commands.
+// Defaults to the real gh CLI client; overridden in tests.
+var ghClient sync.Client = sync.NewGHClient()
 
 var rootCmd = &cobra.Command{
 	Use:   "gh-ext-issue-sync",

@@ -7,8 +7,15 @@ import (
 	"strings"
 )
 
-// PushIssue updates a GitHub issue from local issue data.
-func PushIssue(repo string, issue *Issue) error {
+// pushIssueViaGH updates a GitHub issue using the gh CLI.
+func pushIssueViaGH(repo string, issue *Issue) error {
+	if issue.Number <= 0 {
+		return fmt.Errorf("invalid issue number: %d", issue.Number)
+	}
+	if issue.Title == "" {
+		return fmt.Errorf("issue #%d: title cannot be empty", issue.Number)
+	}
+
 	// Build the update payload - only mutable fields
 	payload := map[string]interface{}{
 		"title": issue.Title,
@@ -22,8 +29,18 @@ func PushIssue(repo string, issue *Issue) error {
 	if issue.Assignees != nil {
 		payload["assignees"] = issue.Assignees
 	}
-	// Milestone requires the milestone number, not title - skip for now
-	// TODO: resolve milestone title to number
+
+	// Resolve milestone title to number if set
+	if issue.Milestone != "" {
+		milestoneNum, err := resolveMilestoneNumber(repo, issue.Milestone)
+		if err != nil {
+			return fmt.Errorf("issue #%d: %w", issue.Number, err)
+		}
+		payload["milestone"] = milestoneNum
+	} else {
+		// Explicitly clear milestone
+		payload["milestone"] = nil
+	}
 
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
@@ -44,4 +61,35 @@ func PushIssue(repo string, issue *Issue) error {
 	}
 
 	return nil
+}
+
+// resolveMilestoneNumber looks up a milestone number by its title.
+func resolveMilestoneNumber(repo string, title string) (int, error) {
+	cmd := exec.Command("gh", "api",
+		fmt.Sprintf("repos/%s/milestones", repo),
+		"--header", "Accept: application/vnd.github+json",
+		"--method", "GET",
+		"-f", "state=all",
+		"-f", "per_page=100",
+	)
+	out, err := cmd.Output()
+	if err != nil {
+		return 0, fmt.Errorf("fetching milestones: %w", err)
+	}
+
+	var milestones []struct {
+		Number int    `json:"number"`
+		Title  string `json:"title"`
+	}
+	if err := json.Unmarshal(out, &milestones); err != nil {
+		return 0, fmt.Errorf("parsing milestones: %w", err)
+	}
+
+	for _, m := range milestones {
+		if m.Title == title {
+			return m.Number, nil
+		}
+	}
+
+	return 0, fmt.Errorf("milestone %q not found", title)
 }
