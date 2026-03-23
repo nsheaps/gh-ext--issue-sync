@@ -1,0 +1,63 @@
+name: ci
+
+"on":
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.ref == 'refs/heads/main' && 'ci-cd-main' || format('ci-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: mise install -y
+        uses: jdx/mise-action@v3
+        with:
+          install: true
+          cache: ${{ github.event_name == 'pull_request' }}
+
+      - name: Build
+        run: go build -v ./...
+
+      - name: Test
+        run: go test -v ./...
+
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: mise install -y
+        uses: jdx/mise-action@v3
+        with:
+          install: true
+          cache: ${{ github.event_name == 'pull_request' }}
+
+      - name: Go vet
+        run: go vet ./...
+
+      - name: Prettier check
+        run: prettier --check .

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+#MISE description="Check lint without fixing"
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+go vet ./...
+
+if command -v prettier >/dev/null 2>&1; then
+  prettier --check .
+fi

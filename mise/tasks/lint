@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+#MISE description="Run all linters"
+#MISE alias="l"
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+# Go vet
+echo "Running go vet..."
+go vet ./...
+
+# Prettier for non-Go files
+if command -v prettier >/dev/null 2>&1; then
+  echo "Running prettier..."
+  prettier --check . 2>/dev/null || {
+    echo "Prettier found issues, fixing..."
+    prettier --write .
+    echo "Re-checking..."
+    prettier --check .
+  }
+fi
+
+echo "Lint passed"

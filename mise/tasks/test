@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE description="Run Go tests"
+#MISE alias="t"
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+go test ./...

@@ -1,0 +1,7 @@
+overrides:
+  - files: "*.md"
+    options:
+      proseWrap: always
+  - files: "*.yaml"
+    options:
+      singleQuote: true
