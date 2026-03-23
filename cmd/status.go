@@ -46,6 +46,10 @@ func runStatus(repo string) error {
 
 	fmt.Fprintf(os.Stderr, "Comparing %d local files against %s...\n\n", len(files), repo)
 
+	modified := 0
+	synced := 0
+	errors := 0
+
 	for _, filename := range files {
 		f, err := os.Open(filename)
 		if err != nil {
@@ -65,6 +69,7 @@ func runStatus(repo string) error {
 		remote, err := ghClient.FetchIssue(repo, meta.Number)
 		if err != nil {
 			fmt.Printf("  ? #%d %s (could not fetch from GitHub)\n", meta.Number, meta.Title)
+			errors++
 			continue
 		}
 
@@ -91,9 +96,19 @@ func runStatus(repo string) error {
 
 		if len(changes) == 0 {
 			fmt.Printf("  = #%d %s\n", meta.Number, meta.Title)
+			synced++
 		} else {
 			fmt.Printf("  M #%d %s [%s]\n", meta.Number, meta.Title, strings.Join(changes, ", "))
+			modified++
 		}
+	}
+
+	// Summary
+	fmt.Println()
+	if modified == 0 && errors == 0 {
+		fmt.Printf("All %d issues in sync.\n", synced)
+	} else {
+		fmt.Printf("%d synced, %d modified, %d errors\n", synced, modified, errors)
 	}
 
 	return nil

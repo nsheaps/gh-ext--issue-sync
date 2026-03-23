@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	pushAll bool
-	pushDir string
+	pushAll    bool
+	pushDir    string
+	pushDryRun bool
 )
 
 var pushCmd = &cobra.Command{
@@ -29,6 +30,9 @@ title, body, labels, assignees, and other metadata from the frontmatter.`,
 			return err
 		}
 
+		if pushAll && len(args) > 0 {
+			return fmt.Errorf("cannot specify both --all and an issue number")
+		}
 		if pushAll {
 			return runPushAll(repo)
 		}
@@ -48,6 +52,7 @@ title, body, labels, assignees, and other metadata from the frontmatter.`,
 
 func init() {
 	pushCmd.Flags().BoolVar(&pushAll, "all", false, "Push all modified issues")
+	pushCmd.Flags().BoolVar(&pushDryRun, "dry-run", false, "Show what would be pushed without making changes")
 	pushCmd.Flags().StringVarP(&pushDir, "dir", "d", "issues", "Directory containing issue files")
 }
 
@@ -56,6 +61,11 @@ func runPush(repo string, number int) error {
 	issue, err := readIssueFile(filename)
 	if err != nil {
 		return err
+	}
+
+	if pushDryRun {
+		fmt.Fprintf(os.Stderr, "  [dry-run] Would push issue #%d (%s)\n", issue.Number, issue.Title)
+		return nil
 	}
 
 	fmt.Fprintf(os.Stderr, "Pushing issue #%d (%s)...\n", issue.Number, issue.Title)
@@ -86,6 +96,12 @@ func runPushAll(repo string) error {
 		issue, err := readIssueFile(filename)
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("  %s: %v", filename, err))
+			continue
+		}
+
+		if pushDryRun {
+			fmt.Fprintf(os.Stderr, "  [dry-run] Would push issue #%d (%s)\n", issue.Number, issue.Title)
+			pushed++
 			continue
 		}
 

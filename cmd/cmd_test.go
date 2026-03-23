@@ -437,6 +437,64 @@ func TestStringSliceEqualUnordered(t *testing.T) {
 	}
 }
 
+// --- Dry-run tests ---
+
+func TestPushDryRun(t *testing.T) {
+	mc := setupTestClient(t)
+	mc.addIssue(makeIssue(42, "Test", "open", "Body"))
+
+	dir := t.TempDir()
+	pushDir = dir
+	pushDryRun = true
+	pushAll = false
+	t.Cleanup(func() { pushDryRun = false })
+
+	issue := makeIssue(42, "Updated", "closed", "New body")
+	if err := writeIssueFile(issue, dir); err != nil {
+		t.Fatalf("writing test file: %v", err)
+	}
+
+	err := pushCmd.RunE(pushCmd, []string{"42"})
+	if err != nil {
+		t.Fatalf("push --dry-run: %v", err)
+	}
+
+	// Should NOT have actually pushed
+	if len(mc.pushCalls) != 0 {
+		t.Errorf("dry-run should not push, but %d issues were pushed", len(mc.pushCalls))
+	}
+}
+
+// --- Mutual exclusion tests ---
+
+func TestPullAllAndNumberMutuallyExclusive(t *testing.T) {
+	setupTestClient(t)
+	pullAll = true
+	t.Cleanup(func() { pullAll = false })
+
+	err := pullCmd.RunE(pullCmd, []string{"42"})
+	if err == nil {
+		t.Error("expected error for --all with issue number")
+	}
+	if !strings.Contains(err.Error(), "cannot specify both") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestPushAllAndNumberMutuallyExclusive(t *testing.T) {
+	setupTestClient(t)
+	pushAll = true
+	t.Cleanup(func() { pushAll = false })
+
+	err := pushCmd.RunE(pushCmd, []string{"42"})
+	if err == nil {
+		t.Error("expected error for --all with issue number")
+	}
+	if !strings.Contains(err.Error(), "cannot specify both") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
 // --- readIssueFile tests ---
 
 func TestReadIssueFileValidation(t *testing.T) {

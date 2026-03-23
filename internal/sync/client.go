@@ -1,3 +1,6 @@
+// Package sync provides the core logic for synchronizing GitHub issues to local
+// files and back. It defines the Client interface for GitHub operations and the
+// GHClient implementation that uses the gh CLI.
 package sync
 
 // Client abstracts GitHub operations so they can be mocked in tests.

@@ -112,12 +112,13 @@ Comparing 5 local files against owner/repo...
 
 All commands support:
 
-| Flag      | Short | Default  | Description                    |
-| --------- | ----- | -------- | ------------------------------ |
-| `--dir`   | `-d`  | `issues` | Directory for issue files      |
-| `--all`   |       |          | Process all issues             |
-| `--state` |       | `open`   | Issue state filter (pull only) |
-| `--help`  | `-h`  |          | Show help                      |
+| Flag        | Short | Default  | Description                           |
+| ----------- | ----- | -------- | ------------------------------------- |
+| `--dir`     | `-d`  | `issues` | Directory for issue files             |
+| `--all`     |       |          | Process all issues                    |
+| `--state`   |       | `open`   | Issue state filter (pull only)        |
+| `--dry-run` |       |          | Show what would be pushed (push only) |
+| `--help`    | `-h`  |          | Show help                             |
 
 ## File Format
 
@@ -310,6 +311,50 @@ git push origin v0.1.0
 
 The release workflow builds precompiled binaries for all platforms using
 [`cli/gh-extension-precompile`](https://github.com/cli/gh-extension-precompile).
+
+## Troubleshooting
+
+### "resolving repo: is gh authenticated and in a git repo?"
+
+Make sure you're in a git repository with a GitHub remote, and that `gh` is
+authenticated:
+
+```bash
+gh auth status
+gh repo view
+```
+
+### "milestone not found"
+
+The push command resolves milestone titles to numbers. If you see this error,
+the milestone title in your frontmatter doesn't match any milestone on GitHub.
+Check available milestones with:
+
+```bash
+gh api repos/OWNER/REPO/milestones --jq '.[].title'
+```
+
+### Push fails for some issues in --all mode
+
+Push continues on errors and reports a summary at the end. Fix the failing
+issues and re-run. The `--dry-run` flag lets you validate files before pushing:
+
+```bash
+gh ext-issue-sync push --all --dry-run
+```
+
+## Known Limitations
+
+- **Pull requests are excluded** — GitHub's issues API returns PRs as issues.
+  This tool filters them out automatically.
+- **Read-only fields** — `number`, `created_at`, `updated_at`, and `author` are
+  ignored during push. They reflect the state at pull time.
+- **No comments sync** — Only the issue body and metadata are synced.
+- **No conflict detection** — If an issue is modified on GitHub after you pull
+  it, pushing will overwrite those changes. Use `status` to check before
+  pushing.
+- **Milestone resolution** — Milestones are matched by exact title. If you
+  rename a milestone on GitHub, update the local files to match.
 
 ## License
 

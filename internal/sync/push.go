@@ -1,11 +1,15 @@
 package sync
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
 )
+
+// milestoneCache maps "repo:title" to milestone number to avoid repeated API calls.
+var milestoneCache = map[string]int{}
 
 // pushIssueViaGH updates a GitHub issue using the gh CLI.
 func pushIssueViaGH(repo string, issue *Issue) error {
@@ -14,6 +18,9 @@ func pushIssueViaGH(repo string, issue *Issue) error {
 	}
 	if issue.Title == "" {
 		return fmt.Errorf("issue #%d: title cannot be empty", issue.Number)
+	}
+	if issue.State != "open" && issue.State != "closed" {
+		return fmt.Errorf("issue #%d: invalid state %q (must be \"open\" or \"closed\")", issue.Number, issue.State)
 	}
 
 	// Build the update payload - only mutable fields
@@ -47,7 +54,9 @@ func pushIssueViaGH(repo string, issue *Issue) error {
 		return fmt.Errorf("marshaling update payload: %w", err)
 	}
 
-	cmd := exec.Command("gh", "api",
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "gh", "api",
 		fmt.Sprintf("repos/%s/issues/%d", repo, issue.Number),
 		"--method", "PATCH",
 		"--header", "Accept: application/vnd.github+json",
@@ -64,8 +73,16 @@ func pushIssueViaGH(repo string, issue *Issue) error {
 }
 
 // resolveMilestoneNumber looks up a milestone number by its title.
+// Results are cached per repo to avoid repeated API calls during batch pushes.
 func resolveMilestoneNumber(repo string, title string) (int, error) {
-	cmd := exec.Command("gh", "api",
+	cacheKey := repo + ":" + title
+	if num, ok := milestoneCache[cacheKey]; ok {
+		return num, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "gh", "api",
 		fmt.Sprintf("repos/%s/milestones", repo),
 		"--header", "Accept: application/vnd.github+json",
 		"--method", "GET",
@@ -85,11 +102,21 @@ func resolveMilestoneNumber(repo string, title string) (int, error) {
 		return 0, fmt.Errorf("parsing milestones: %w", err)
 	}
 
+	// Cache all milestones for this repo
 	for _, m := range milestones {
-		if m.Title == title {
-			return m.Number, nil
-		}
+		milestoneCache[repo+":"+m.Title] = m.Number
 	}
 
-	return 0, fmt.Errorf("milestone %q not found", title)
+	if num, ok := milestoneCache[cacheKey]; ok {
+		return num, nil
+	}
+
+	var available []string
+	for _, m := range milestones {
+		available = append(available, m.Title)
+	}
+	if len(available) > 0 {
+		return 0, fmt.Errorf("milestone %q not found (available: %s)", title, strings.Join(available, ", "))
+	}
+	return 0, fmt.Errorf("milestone %q not found (no milestones exist in this repo)", title)
 }

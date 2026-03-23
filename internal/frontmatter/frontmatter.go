@@ -1,3 +1,6 @@
+// Package frontmatter provides generic YAML frontmatter serialization for
+// markdown files. It reads and writes the "---" delimited YAML header followed
+// by markdown body content.
 package frontmatter
 
 import (

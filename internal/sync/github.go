@@ -1,12 +1,16 @@
 package sync
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
 	"time"
 )
+
+// commandTimeout is the maximum time to wait for a gh CLI command.
+const commandTimeout = 2 * time.Minute
 
 // ghAPIIssue is the JSON shape returned by the GitHub API.
 type ghAPIIssue struct {
@@ -43,7 +47,9 @@ func NewGHClient() Client {
 }
 
 func (c *GHClient) ResolveRepo() (string, error) {
-	cmd := exec.Command("gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner")
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner")
 	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("resolving repo: %w (is gh authenticated and in a git repo?)", err)
@@ -52,7 +58,9 @@ func (c *GHClient) ResolveRepo() (string, error) {
 }
 
 func (c *GHClient) FetchIssue(repo string, number int) (*Issue, error) {
-	cmd := exec.Command("gh", "api",
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "gh", "api",
 		fmt.Sprintf("repos/%s/issues/%d", repo, number),
 		"--header", "Accept: application/vnd.github+json",
 	)
@@ -80,7 +88,10 @@ func (c *GHClient) FetchAllIssues(repo string, state string) ([]*Issue, error) {
 
 	// gh api --paginate concatenates JSON arrays: [{...}][{...}]
 	// Use --jq '.[]' to emit newline-delimited JSON objects instead.
-	cmd := exec.Command("gh", "api",
+	// Use a longer timeout for paginated requests.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "gh", "api",
 		fmt.Sprintf("repos/%s/issues", repo),
 		"--header", "Accept: application/vnd.github+json",
 		"--method", "GET",

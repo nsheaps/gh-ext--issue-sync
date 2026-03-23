@@ -29,6 +29,9 @@ with YAML frontmatter containing issue metadata.`,
 			return err
 		}
 
+		if pullAll && len(args) > 0 {
+			return fmt.Errorf("cannot specify both --all and an issue number")
+		}
 		if pullAll {
 			return runPullAll(repo)
 		}
