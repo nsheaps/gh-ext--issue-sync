@@ -1,6 +1,6 @@
 name: ci
 
-"on":
+'on':
   pull_request:
   push:
     branches:
@@ -25,7 +25,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: mise install -y
+      - name: Install tools
         uses: jdx/mise-action@v3
         with:
           install: true
@@ -34,8 +34,11 @@ jobs:
       - name: Build
         run: go build -v ./...
 
-      - name: Test
-        run: go test -v ./...
+      - name: Test with coverage
+        run: go test -v -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Display coverage summary
+        run: go tool cover -func=coverage.out
 
   lint:
     runs-on: ubuntu-latest
@@ -50,7 +53,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: mise install -y
+      - name: Install tools
         uses: jdx/mise-action@v3
         with:
           install: true

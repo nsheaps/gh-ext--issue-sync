@@ -1,7 +1,7 @@
 overrides:
-  - files: "*.md"
+  - files: '*.md'
     options:
       proseWrap: always
-  - files: "*.yaml"
+  - files: '*.yaml'
     options:
       singleQuote: true

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-#MISE description="Run Go tests"
+#MISE description="Run Go tests with coverage"
 #MISE alias="t"
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
-go test ./...
+go test -cover ./...

@@ -4,6 +4,7 @@ gh-ext--issue-sync
 dist/
 
 # Go
+coverage.out
 *.exe
 *.dll
 *.so
