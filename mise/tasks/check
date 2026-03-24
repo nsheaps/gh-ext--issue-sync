@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE description="Run all checks (lint + test + build)"
+#MISE alias="c"
+#MISE depends=["lint", "test", "build"]
+set -euo pipefail
+
+echo "All checks passed"

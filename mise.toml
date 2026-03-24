@@ -1,0 +1,8 @@
+[tools]
+go = "1.24"
+gh = "latest"
+"npm:prettier" = "latest"
+
+[settings]
+legacy_version_file = false
+auto_install = false

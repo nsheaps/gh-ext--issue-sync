@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#MISE description="Install dependencies"
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+mise install -y
+go mod download
+echo "Setup complete"
